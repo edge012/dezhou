@@ -11,6 +11,7 @@ export interface CoachingInsight {
   equity: string;
   advice: string;
   outsInfo: string;
+  lagPlay: string;         // 松凶视角：LAG玩家会怎么打
   // Local computed fields
   potOdds?: string;
   localOuts?: string;
@@ -59,7 +60,7 @@ function normalizeInsightPayload(data: Partial<CoachingInsight>, fallbackReasoni
   if (typeof normalized.reasoning === 'string' && normalized.reasoning.trim().startsWith('{')) {
     normalized = { ...normalized, ...(parseEmbeddedInsight(normalized.reasoning) || {}) };
   }
-  for (const key of ['reasoning', 'businessAnalogy', 'advice', 'outsInfo'] as const) {
+  for (const key of ['reasoning', 'businessAnalogy', 'advice', 'outsInfo', 'lagPlay'] as const) {
     const value = normalized[key];
     if (typeof value === 'string' && value.trim().startsWith('{')) {
       const parsed = parseEmbeddedInsight(value);
@@ -74,6 +75,7 @@ function normalizeInsightPayload(data: Partial<CoachingInsight>, fallbackReasoni
     equity: cleanJsonNoise(String(normalized.equity || '不确定')),
     advice: cleanJsonNoise(String(normalized.advice || '先看赔率，再看对手类型；能榨价值就下注，没弃牌率就少诈唬。')),
     outsInfo: cleanJsonNoise(String(normalized.outsInfo || '')),
+    lagPlay: cleanJsonNoise(String(normalized.lagPlay || '')),
   };
 }
 
@@ -135,6 +137,7 @@ export async function getCoachingInsight(
         ? `如果跟注成本只占底池一小块，可以用小成本看下一张；如果对手突然下大注，就把它当成项目追加预算，先问回报率够不够。`
         : '没人要你付费时可以先过牌看信息；如果你有位置优势，也可以用小注试探，让对手告诉你一点范围。',
       outsInfo: outsInfo?.description || '',
+      lagPlay: '松凶玩家这里会用底池60-80%的下注施压，不管有没有牌。逻辑是：大部分人翻牌没中，谁先下注谁拿走。',
       potOdds: potOddsInfo.description,
       localOuts: outsInfo?.description || '',
     };

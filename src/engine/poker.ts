@@ -215,8 +215,10 @@ function evaluate5Cards(cards: Card[]): HandEvaluation {
     .map(([rank, count]) => ({ rank: rank as Rank, count, value: RANK_VALUE[rank as Rank] }))
     .sort((a, b) => b.count - a.count || b.value - a.value);
   
-  // Calculate kicker score (for tie-breaking)
-  const kickerScore = (vals: number[]): number => {
+  // Calculate kicker score — positional scoring for tiebreakers.
+  // Uses 15^(numPositions-1-i) so that position 0 has the highest weight.
+  // This is ONLY used for hands where all 5 cards are kickers (high card, flush).
+  const kickerScore5 = (vals: number[]): number => {
     let score = 0;
     for (let i = 0; i < vals.length && i < 5; i++) {
       score += vals[i] * Math.pow(15, 4 - i);
@@ -266,11 +268,11 @@ function evaluate5Cards(cards: Card[]): HandEvaluation {
     };
   }
   
-  // Flush
+  // Flush — all 5 cards matter equally for ranking
   if (isFlush) {
     return {
       rank: HandRank.FLUSH,
-      score: 5e10 + kickerScore(values),
+      score: 5e10 + kickerScore5(values),
       name: `同花 (${sorted[0].rank}高)`,
       bestCards: sorted
     };
@@ -286,12 +288,12 @@ function evaluate5Cards(cards: Card[]): HandEvaluation {
     };
   }
   
-  // Three of a Kind
+  // Three of a Kind — trip rank (15^2) >> kicker1 (15^1) >> kicker2 (15^0)
   if (groups[0].count === 3) {
     const kickers = groups.filter(g => g.count !== 3).map(g => g.value);
     return {
       rank: HandRank.THREE_OF_A_KIND,
-      score: 3e10 + groups[0].value * 225 + kickerScore(kickers),
+      score: 3e10 + groups[0].value * 225 + (kickers[0] || 0) * 15 + (kickers[1] || 0),
       name: `三条 ${groups[0].rank}`,
       bestCards: sorted
     };
@@ -310,12 +312,12 @@ function evaluate5Cards(cards: Card[]): HandEvaluation {
     };
   }
   
-  // One Pair
+  // One Pair — pair rank (15^3) >> k1 (15^2) >> k2 (15^1) >> k3 (15^0)
   if (groups[0].count === 2) {
     const kickers = groups.filter(g => g.count !== 2).map(g => g.value);
     return {
       rank: HandRank.PAIR,
-      score: 1e10 + groups[0].value * 3375 + kickerScore(kickers),
+      score: 1e10 + groups[0].value * 3375 + (kickers[0] || 0) * 225 + (kickers[1] || 0) * 15 + (kickers[2] || 0),
       name: `一对 ${groups[0].rank}`,
       bestCards: sorted
     };
@@ -324,7 +326,7 @@ function evaluate5Cards(cards: Card[]): HandEvaluation {
   // High Card
   return {
     rank: HandRank.HIGH_CARD,
-    score: kickerScore(values),
+    score: kickerScore5(values),
     name: `高牌 ${sorted[0].rank}`,
     bestCards: sorted
   };
@@ -601,14 +603,16 @@ export interface HandContribution {
 }
 
 /**
- * Determine which hole cards and community cards contribute to the best 5-card hand.
+ * Determine which hole cards and community cards form the core hand rank.
+ * Only marks the essential cards (e.g., the pair in "one pair", the 5 straight cards),
+ * NOT the kickers. High card highlights nothing since it's not a special hand.
  */
 export function getHandContribution(holeCards: Card[], communityCards: Card[]): HandContribution {
   const allCards = [...holeCards, ...communityCards];
   
   if (allCards.length < 5) {
     return {
-      holeUsed: [true, true],
+      holeUsed: [false, false],
       communityUsed: communityCards.map(() => false),
       bestCards: allCards,
       rank: HandRank.HIGH_CARD,
@@ -617,14 +621,78 @@ export function getHandContribution(holeCards: Card[], communityCards: Card[]): 
   }
 
   const eval_ = evaluateHand(allCards);
-  const bestSet = new Set(eval_.bestCards.map(c => `${c.suit}-${c.rank}`));
+  const best5 = eval_.bestCards; // the best 5-card hand, sorted descending
+
+  // Identify which cards are "core" to the rank (not kickers)
+  let coreCards: Card[] = [];
+
+  switch (eval_.rank) {
+    case HandRank.ROYAL_FLUSH:
+    case HandRank.STRAIGHT_FLUSH:
+    case HandRank.FLUSH:
+    case HandRank.STRAIGHT:
+      // All 5 cards form the hand
+      coreCards = [...best5];
+      break;
+
+    case HandRank.FOUR_OF_A_KIND: {
+      // The 4 matching cards (not the kicker)
+      const rankCounts: Record<string, number> = {};
+      best5.forEach(c => rankCounts[c.rank] = (rankCounts[c.rank] || 0) + 1);
+      const quadRank = Object.keys(rankCounts).find(r => rankCounts[r] === 4)!;
+      coreCards = best5.filter(c => c.rank === quadRank);
+      break;
+    }
+
+    case HandRank.FULL_HOUSE: {
+      // All 5 cards form the full house (trips + pair)
+      coreCards = [...best5];
+      break;
+    }
+
+    case HandRank.THREE_OF_A_KIND: {
+      // The 3 matching cards
+      const rankCounts: Record<string, number> = {};
+      best5.forEach(c => rankCounts[c.rank] = (rankCounts[c.rank] || 0) + 1);
+      const tripRank = Object.keys(rankCounts).find(r => rankCounts[r] === 3)!;
+      coreCards = best5.filter(c => c.rank === tripRank);
+      break;
+    }
+
+    case HandRank.TWO_PAIR: {
+      // The 4 cards forming the two pairs (not the kicker)
+      const rankCounts: Record<string, number> = {};
+      best5.forEach(c => rankCounts[c.rank] = (rankCounts[c.rank] || 0) + 1);
+      const pairRanks = Object.keys(rankCounts).filter(r => rankCounts[r] === 2);
+      coreCards = best5.filter(c => pairRanks.includes(c.rank));
+      break;
+    }
+
+    case HandRank.PAIR: {
+      // The 2 matching cards only
+      const rankCounts: Record<string, number> = {};
+      best5.forEach(c => rankCounts[c.rank] = (rankCounts[c.rank] || 0) + 1);
+      const pairRank = Object.keys(rankCounts).find(r => rankCounts[r] === 2)!;
+      coreCards = best5.filter(c => c.rank === pairRank);
+      break;
+    }
+
+    case HandRank.HIGH_CARD:
+    default:
+      // High card is not special — don't highlight anything
+      coreCards = [];
+      break;
+  }
+
+  // Build a set of core card identifiers
+  const coreSet = new Set(coreCards.map(c => `${c.suit}-${c.rank}`));
   
   const holeUsed: [boolean, boolean] = [
-    holeCards.length > 0 ? bestSet.has(`${holeCards[0].suit}-${holeCards[0].rank}`) : false,
-    holeCards.length > 1 ? bestSet.has(`${holeCards[1].suit}-${holeCards[1].rank}`) : false,
+    holeCards.length > 0 ? coreSet.has(`${holeCards[0].suit}-${holeCards[0].rank}`) : false,
+    holeCards.length > 1 ? coreSet.has(`${holeCards[1].suit}-${holeCards[1].rank}`) : false,
   ];
   
-  const communityUsed = communityCards.map(c => bestSet.has(`${c.suit}-${c.rank}`));
+  const communityUsed = communityCards.map(c => coreSet.has(`${c.suit}-${c.rank}`));
 
   return {
     holeUsed,

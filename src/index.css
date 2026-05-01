@@ -1062,3 +1062,14 @@ input[type="range"]::-moz-range-thumb {
   0%, 100% { transform: scale(0.8); opacity: 0.6; }
   50% { transform: scale(1.3); opacity: 1; }
 }
+
+/* ============ Showdown Panel (non-blocking, bottom) ============ */
+.showdown-panel {
+  background: rgba(10, 17, 33, 0.95);
+  backdrop-filter: blur(24px) saturate(1.3);
+  border: 1px solid rgba(212, 168, 71, 0.25);
+  box-shadow:
+    0 -4px 30px rgba(0, 0, 0, 0.5),
+    0 0 40px rgba(212, 168, 71, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}

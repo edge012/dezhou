@@ -181,10 +181,12 @@ export function usePokerGame() {
   const [isHeroFolding, setIsHeroFolding] = useState(false);
   const [showKnowledge, setShowKnowledge] = useState(false);
   const [panelTab, setPanelTab] = useState<PanelTab>('coach');
+  const [showdownReady, setShowdownReady] = useState(false);
 
   const aiTimerRef = useRef<number | null>(null);
   const foldTimerRef = useRef<number | null>(null);
   const runoutTimerRef = useRef<number | null>(null);
+  const showdownTimerRef = useRef<number | null>(null);
   const coachCalledRef = useRef(false);
   const reviewCalledRef = useRef(false);
   const gameStateRef = useRef<GameState | null>(null);
@@ -268,6 +270,8 @@ export function usePokerGame() {
     setInsight(null);
     setReviewResult(null);
     setSelectedHistoryId(null);
+    setShowdownReady(false);
+    if (showdownTimerRef.current) { clearTimeout(showdownTimerRef.current); showdownTimerRef.current = null; }
     setPanelTab('coach');
     coachCalledRef.current = false;
     reviewCalledRef.current = false;
@@ -299,6 +303,8 @@ export function usePokerGame() {
     setInsight(null);
     setReviewResult(null);
     setSelectedHistoryId(null);
+    setShowdownReady(false);
+    if (showdownTimerRef.current) { clearTimeout(showdownTimerRef.current); showdownTimerRef.current = null; }
     setPanelTab('coach');
     coachCalledRef.current = false;
     reviewCalledRef.current = false;
@@ -314,6 +320,8 @@ export function usePokerGame() {
     setAppMode('intro');
     setInsight(null);
     setReviewResult(null);
+    setShowdownReady(false);
+    if (showdownTimerRef.current) { clearTimeout(showdownTimerRef.current); showdownTimerRef.current = null; }
     setPanelTab('coach');
     cancelFoldThinking();
   }, [activeSessionConfig.mode, applyAccountDelta, cancelFoldThinking, gameState]);
@@ -557,10 +565,28 @@ export function usePokerGame() {
     setRaiseAmount(prev => Math.max(minRaiseTotal, Math.min(prev, maxRaiseTotal)));
   }, [minRaiseTotal, maxRaiseTotal]);
 
+  // Delay showing showdown panel to give time to see the board
+  useEffect(() => {
+    if (!gameState?.isHandComplete) {
+      return;
+    }
+    const delay = 3000; // 3 seconds delay before showing result
+    showdownTimerRef.current = window.setTimeout(() => {
+      setShowdownReady(true);
+    }, delay);
+    return () => {
+      if (showdownTimerRef.current) {
+        clearTimeout(showdownTimerRef.current);
+        showdownTimerRef.current = null;
+      }
+    };
+  }, [gameState?.isHandComplete]);
+
   return {
     gameState, appMode, sessionConfig, activeSessionConfig, account, sessionStats,
     handHistory, selectedHistory, selectedHistoryId,
     raiseAmount, insight, isInsightLoading, reviewResult, isReviewing, isHeroFolding, showKnowledge, panelTab,
+    showdownReady,
     hero, heroEval, heroPreFlop, callCost, canAct, outsInfo, potOddsInfo,
     heroContribution, playerHandInfos,
     minRaiseTotal, maxRaiseTotal, bankrollAtRisk, canStartSession,

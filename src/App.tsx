@@ -26,12 +26,14 @@ function getActionMeta(action?: string) {
 
 function insightPoints(text?: string, limit = 4) {
   if (!text) return [];
+  // Split on circled numbers (①②③), or "数字)" / "数字）" at start of segment,
+  // but NOT on digits that are part of ratios like "1/2" or dollar amounts.
   return text
-    .replace(/\s*\d+[)）.、]\s*/g, '|')
-    .replace(/[。；;]\s*/g, '|')
+    .replace(/[①②③④⑤⑥⑦⑧⑨⑩]/g, '|')
+    .replace(/(^|\||\n)\s*\d+[)）、]\s*/g, '$1|')
     .split('|')
     .map(item => item.trim().replace(/^[-•]\s*/, ''))
-    .filter(Boolean)
+    .filter(s => s.length > 2)
     .slice(0, limit);
 }
 
@@ -107,8 +109,8 @@ function IntroScreen({ g }: { g: PokerGameHook }) {
 
           <div className="grid grid-cols-2 gap-2 mb-4">
             {([
-              ['cash', '现金局', '每次买入上桌，离桌按桌上筹码结算'],
-              ['tournament', '锦标赛', '付报名费，固定起始码，盲注会升级'],
+              ['cash', '💵 现金局', '随时买入离桌，按桌上筹码结算盈亏'],
+              ['tournament', '🏆 锦标赛', '报名费入场，盲注会升级，打到最后'],
             ] as const).map(([mode, title, desc]) => (
               <button key={mode} onClick={() => updateConfig({ mode })}
                 className={`text-left p-3 rounded-xl border transition-colors ${cfg.mode === mode ? 'bg-blue-950/40 border-blue-500/50' : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'}`}>
@@ -116,6 +118,27 @@ function IntroScreen({ g }: { g: PokerGameHook }) {
                 <div className="text-[10px] text-slate-500 mt-1 leading-relaxed">{desc}</div>
               </button>
             ))}
+          </div>
+
+          {/* Mode-specific rules explanation */}
+          <div className="mb-3 px-3 py-2.5 rounded-lg bg-slate-900/50 border border-slate-800/50 text-[10px] text-slate-400 leading-relaxed">
+            {cfg.mode === 'cash' ? (
+              <div className="space-y-1">
+                <div className="text-blue-400 font-bold text-[11px]">现金局规则</div>
+                <div>• 从账户扣除 <span className="text-white font-mono">${cfg.buyIn}</span> 买入</div>
+                <div>• 筹码清零自动重新买入</div>
+                <div>• 离桌时桌上筹码返还账户</div>
+                <div>• 盈亏 = 离桌筹码 − 总买入金额</div>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                <div className="text-yellow-400 font-bold text-[11px]">锦标赛规则</div>
+                <div>• 报名费 <span className="text-white font-mono">${cfg.tournamentEntry}</span>，5人参赛</div>
+                <div>• 起始筹码 <span className="text-white font-mono">${cfg.tournamentStack}</span>，不能重新买入</div>
+                <div>• 每 <span className="text-white font-mono">{cfg.handsPerLevel}</span> 手盲注翻倍（{cfg.smallBlind}/{cfg.bigBlind} → {cfg.smallBlind*2}/{cfg.bigBlind*2} → ...）</div>
+                <div>• 筹码清零即淘汰，最后存活者独得奖池 <span className="text-white font-mono">${cfg.tournamentEntry * 5}</span></div>
+              </div>
+            )}
           </div>
 
           <div className="space-y-3">
@@ -150,11 +173,13 @@ function IntroScreen({ g }: { g: PokerGameHook }) {
                 <input type="number" min={10} step={10} value={cfg.bigBlind}
                   onChange={e => updateConfig({ bigBlind: Math.max(10, Number(e.target.value) || 10) })} />
               </label>
-              <label className="intro-field">
-                <span>升级/手</span>
-                <input type="number" min={2} step={1} value={cfg.handsPerLevel}
-                  onChange={e => updateConfig({ handsPerLevel: Math.max(2, Number(e.target.value) || 2) })} />
-              </label>
+              {cfg.mode === 'tournament' && (
+                <label className="intro-field">
+                  <span>升盲/手</span>
+                  <input type="number" min={2} step={1} value={cfg.handsPerLevel}
+                    onChange={e => updateConfig({ handsPerLevel: Math.max(2, Number(e.target.value) || 2) })} />
+                </label>
+              )}
             </div>
           </div>
 
@@ -238,15 +263,27 @@ export default function App() {
           </div>
           <div className="h-4 w-px bg-slate-700/60" />
           <div className="text-[10px] text-amber-400 font-mono font-bold">第 {gs.roundNum} 局</div>
-          <div className="text-[10px] text-slate-500 font-mono font-bold">
-            {g.activeSessionConfig.mode === 'cash' ? '现金局' : `锦标赛 L${gs.blindLevel}`} · {gs.smallBlind}/{gs.bigBlind}
-          </div>
+          {g.activeSessionConfig.mode === 'tournament' ? (
+            <div className="text-[10px] text-yellow-400 font-mono font-bold flex items-center gap-1.5">
+              <span>🏆 锦标赛</span>
+              <span className="text-slate-500">L{gs.blindLevel}</span>
+              <span className="text-white">{gs.smallBlind}/{gs.bigBlind}</span>
+              <span className="text-slate-600">·</span>
+              <span className="text-slate-500">{gs.handsPerLevel - ((gs.roundNum - 1) % gs.handsPerLevel)}手后升盲</span>
+              <span className="text-slate-600">·</span>
+              <span className="text-slate-500">存活 <span className="text-orange-400">{gs.players.filter(p => !p.isEliminated).length}</span>/5</span>
+            </div>
+          ) : (
+            <div className="text-[10px] text-blue-400 font-mono font-bold">
+              💵 现金局 · {gs.smallBlind}/{gs.bigBlind}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-3">
           <div className="bg-slate-800/80 px-3 py-1.5 rounded-lg border border-slate-700/50 flex items-center gap-4 text-[10px] font-mono">
             <span className="text-slate-500">打了 <span className="text-blue-400 font-bold">{g.sessionStats.handsPlayed}</span> 局</span>
-            <span className="text-slate-500">赢了 <span className="text-emerald-400 font-bold">{g.sessionStats.winCount}</span> 局</span>
-            <span className="text-slate-500">本桌 <span className={hero && hero.stack >= g.sessionStats.startStack ? 'text-emerald-400 font-bold' : 'text-red-400 font-bold'}>
+            <span className="text-slate-500">胜率 <span className={winRate >= 50 ? 'text-emerald-400 font-bold' : 'text-slate-300 font-bold'}>{winRate}%</span></span>
+            <span className="text-slate-500">盈亏 <span className={hero && hero.stack >= g.sessionStats.startStack ? 'text-emerald-400 font-bold' : 'text-red-400 font-bold'}>
               {hero ? (hero.stack - g.sessionStats.startStack > 0 ? '+' : '') + (hero.stack - g.sessionStats.startStack) : 0}
             </span></span>
           </div>
@@ -314,7 +351,20 @@ export default function App() {
             {/* Player Seats */}
             <div className="absolute inset-[-70px] pointer-events-none z-20">
               {gs.players.map((player, idx) => {
-                const handInfo = g.playerHandInfos.find(h => h.playerId === player.id);
+                // During runout/showdown, use engine-computed handInfos for all players
+                let handInfo = g.playerHandInfos.find(h => h.playerId === player.id);
+                // For hero during normal play (not runout), use heroContribution for highlighting
+                if (!handInfo && player.type === 'human' && g.heroContribution && gs.communityCards.length >= 3) {
+                  handInfo = {
+                    playerId: player.id,
+                    rank: g.heroContribution.rank,
+                    name: g.heroContribution.name,
+                    bestCards: g.heroContribution.bestCards,
+                    holeUsed: g.heroContribution.holeUsed,
+                    communityUsed: g.heroContribution.communityUsed,
+                    draws: [],
+                  };
+                }
                 return (
                   <div key={player.id} className={`pointer-events-auto ${seatPositions[idx]}`}>
                     <PlayerSeat
@@ -486,6 +536,14 @@ export default function App() {
                           <div className="text-[9px] font-black text-amber-400 uppercase tracking-widest mb-1">打法计划</div>
                           <InsightList text={g.insight.advice} limit={4} />
                         </div>
+
+                        {/* 松凶视角 (LAG) */}
+                        {g.insight.lagPlay && g.insight.lagPlay.length > 0 && (
+                          <div className="insight-block insight-block-action">
+                            <div className="text-[9px] font-bold text-orange-400 mb-1">松凶视角 (LAG)</div>
+                            <InsightList text={g.insight.lagPlay} limit={3} />
+                          </div>
+                        )}
 
                         {/* 盘面拆解 */}
                         <div className="insight-block insight-block-poker">
@@ -795,28 +853,35 @@ export default function App() {
         </div>
       </footer>
 
-      {/* ─── Showdown Overlay ─── */}
+      {/* ─── Showdown Result Panel (non-blocking, bottom) ─── */}
       <AnimatePresence>
-        {gs.isHandComplete && (
+        {gs.isHandComplete && g.showdownReady && (
           <motion.div
-            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-6"
+            initial={{ opacity: 0, y: 60 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 40 }}
+            transition={{ duration: 0.35, ease: 'easeOut' }}
+            className="fixed bottom-4 left-1/2 -translate-x-1/2 z-[100] w-[520px] max-w-[95vw]"
           >
-            <motion.div
-              initial={{ scale: 0.9, y: 30 }} animate={{ scale: 1, y: 0 }}
-              className="bg-slate-900/95 border border-yellow-500/20 p-8 rounded-2xl glow-gold text-center flex flex-col items-center w-full max-w-md result-panel"
-            >
-              <div className="w-14 h-14 bg-yellow-500/15 text-yellow-400 rounded-xl flex items-center justify-center mb-5 border border-yellow-500/30">
-                <Trophy className="w-7 h-7" />
+            <div className="showdown-panel rounded-2xl p-5 flex flex-col items-center">
+              {/* Header */}
+              <div className="flex items-center gap-2 mb-3">
+                <div className="w-8 h-8 bg-yellow-500/15 text-yellow-400 rounded-lg flex items-center justify-center border border-yellow-500/30">
+                  <Trophy className="w-4 h-4" />
+                </div>
+                <div>
+                  <h2 className="text-sm font-black text-white uppercase tracking-widest leading-tight">本局结束</h2>
+                  <div className="text-[9px] text-slate-500">{gs.winners.some(w => gs.players.find(p => p.id === w.playerId)?.type === 'human') ? '🎉 漂亮！' : '💪 下局再来'}</div>
+                </div>
               </div>
-              <h2 className="text-2xl font-black text-white mb-1 uppercase tracking-widest">本局结束</h2>
-              <div className="text-[10px] text-slate-500 mb-4">{gs.winners.some(w => gs.players.find(p => p.id === w.playerId)?.type === 'human') ? '🎉 漂亮！这把打得不错' : '💪 没关系，下局再来'}</div>
-              <div className="space-y-2 mb-6 w-full">
+
+              {/* Winners */}
+              <div className="space-y-1.5 mb-3 w-full">
                 {gs.winners.map((w, i) => {
                   const p = gs.players.find(p => p.id === w.playerId);
                   const isHero = p?.type === 'human';
                   return (
-                    <div key={i} className={`text-sm py-2 px-4 rounded-lg ${isHero ? 'bg-emerald-950/30 border border-emerald-800/30' : 'bg-slate-800/50'}`}>
+                    <div key={i} className={`text-xs py-1.5 px-3 rounded-lg ${isHero ? 'bg-emerald-950/40 border border-emerald-800/30' : 'bg-slate-800/50'}`}>
                       <span className={isHero ? 'text-emerald-400 font-bold' : 'text-yellow-400 font-bold'}>{p?.name}</span>
                       {' '}以 <span className="text-white font-mono">{w.handName}</span> 赢得{' '}
                       <span className="text-white font-bold font-mono">${w.amount}</span>
@@ -824,17 +889,45 @@ export default function App() {
                   );
                 })}
               </div>
-              <div className="flex gap-3 w-full">
+
+              {/* All players' hands */}
+              {gs.communityCards.length >= 5 && (
+                <div className="w-full mb-3 space-y-1">
+                  <div className="text-[8px] text-slate-500 font-bold uppercase tracking-widest mb-0.5">各家亮牌</div>
+                  {gs.players.filter(p => !p.isEliminated && !p.isFolded && p.cards.length > 0).map(p => {
+                    const isWinner = gs.winners.some(w => w.playerId === p.id);
+                    const handName = gs.winners.find(w => w.playerId === p.id)?.handName || 
+                      gs.handLog.find(l => l.msg.includes(p.name) && l.type === 'system' && l.phase === 'showdown')?.msg.split('→')[1]?.trim() || '';
+                    return (
+                      <div key={p.id} className={`flex items-center gap-2 px-2.5 py-1 rounded-lg text-[10px] ${isWinner ? 'bg-yellow-500/10 border border-yellow-500/20' : 'bg-slate-800/30'}`}>
+                        <span className={`font-bold min-w-[40px] ${p.type === 'human' ? 'text-blue-400' : 'text-slate-300'}`}>
+                          {p.type === 'human' ? '你' : p.name}
+                        </span>
+                        <div className="flex gap-0.5">
+                          {p.cards.map((c, ci) => (
+                            <CardComponent key={ci} card={c} small />
+                          ))}
+                        </div>
+                        <span className={`font-mono font-bold ${isWinner ? 'text-yellow-400' : 'text-slate-400'}`}>{handName}</span>
+                        {isWinner && <span className="text-yellow-500 text-[9px]">🏆</span>}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Buttons */}
+              <div className="flex gap-2 w-full">
                 <button onClick={() => { g.setPanelTab('review'); }}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-3 rounded-xl text-sm border border-slate-700 transition-colors">
-                  看看教练怎么说
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold py-2.5 rounded-xl text-xs border border-slate-700 transition-colors">
+                  教练点评
                 </button>
                 <button onClick={heroTournamentOut || gs.isSessionComplete ? g.leaveTable : g.nextHand}
-                  className="flex-1 bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-slate-900 font-black py-3 rounded-xl text-sm tracking-wider uppercase transition-all active:scale-95">
-                  {heroTournamentOut || gs.isSessionComplete ? '回大厅' : '再来一局 →'}
+                  className="flex-1 bg-gradient-to-r from-yellow-600 to-yellow-500 hover:from-yellow-500 hover:to-yellow-400 text-slate-900 font-black py-2.5 rounded-xl text-xs tracking-wider uppercase transition-all active:scale-95">
+                  {heroTournamentOut || gs.isSessionComplete ? '回大厅' : '下一局 →'}
                 </button>
               </div>
-            </motion.div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

@@ -28,6 +28,7 @@ type CoachPayload = {
   equity: string;
   advice: string;
   outsInfo: string;
+  lagPlay: string;
 };
 
 function extractJsonBlock(text: string): string {
@@ -55,7 +56,7 @@ function stripJsonNoise(text: string): string {
     .replace(/^```(?:json)?/i, '')
     .replace(/```$/i, '')
     .replace(/[{}]/g, '')
-    .replace(/"?(action|reasoning|businessAnalogy|equity|advice|outsInfo)"?\s*:/g, '')
+    .replace(/"?(action|reasoning|businessAnalogy|equity|advice|outsInfo|lagPlay)"?\s*:/g, '')
     .replace(/^["']?\s*(Fold|Check|Call|Raise|All-?In)\s*["']?\s*,\s*/i, '')
     .replace(/^["']\s*/, '')
     .replace(/["']\s*$/g, '')
@@ -87,6 +88,7 @@ function normalizeCoachPayload(raw: Partial<CoachPayload> | null, originalText =
     equity: stripJsonNoise(String(payload.equity || '粗估不明')),
     advice: stripJsonNoise(String(payload.advice || '先用小成本拿信息；如果对手下注尺度突然变重，就重新按赔率和范围算账。')),
     outsInfo: stripJsonNoise(String(payload.outsInfo || '')),
+    lagPlay: stripJsonNoise(String(payload.lagPlay || '')),
   };
 }
 
@@ -195,9 +197,10 @@ ${phaseTip}
 {
   “action”: “Fold/Check/Call/Raise”,
   “reasoning”: “3-5句技术分析：①先判定底牌等级并说一句话解释为什么是这个等级 ②SPR和赔率（附白话）③位置和对手范围 ④一句心理博弈”,
-  “businessAnalogy”: “商业类比故事，用真实公司案例讲这手牌的决策逻辑，可以延伸到风险管理、投入产出、沉没成本等商业洞察”,
+  “businessAnalogy”: “用一个具体的真实公司案例打比方，说清公司名、发生了什么、跟这手牌的决策逻辑有什么关系。【重要】每次必须选一个不同的公司/行业，绝对不要重复用诺基亚、柯达等老掉牙的案例。从这些公司中随机选或自己想新的：Stripe支付赌注、Shopify从论坛转型、Zoom疫情前布局、Costco会员制、ALDI极简零售、海底捞服务溢价、瑞幸咖啡补贴战、巴菲特打卡决策法、桥水全天候策略、莱斯特城5000:1夺冠、Netflix放弃DVD、迪士尼收购漫威、丰田精益生产、SHEIN柔性供应链、拼多多下沉市场、Airbnb房东策略、SpaceX火箭回收、任天堂Switch双模式、星巴克第三空间、Dyson无叶风扇研发、优衣库基本款策略、比亚迪垂直整合”,
   “equity”: “粗估赢面百分比，附一句话白话解释（例如：'大概三分之一的机会，就是三把能赢一把'）”,
-  “advice”: “打法计划：具体行动+下注尺度+适合TAG还是LAG（为什么）+如果下一张好/坏分别怎么走”,
+  “advice”: “打法计划：具体行动+下注尺度+如果下一张好/坏分别怎么走”,
+  “lagPlay”: “松凶视角（LAG）：如果是激进派玩家，这里会怎么打？找什么理由诈唬或施压？（如果不适合激进操作，也说明原因）”,
   “outsInfo”: “有听牌写outs数和命中率（白话：'大概X分之一'）；没听牌说靠什么赢或为什么该跑”
 }`;
 
@@ -257,7 +260,7 @@ ${handLog}
 请用Markdown格式回复，包含：
 1. **整体印象** — 一两句话说说我这把打得怎么样，别客气也别太严厉
 2. **关键时刻** — 挑1-2个关键决定，说下注尺度、底池赔率、范围判断或心理博弈哪里好/哪里亏
-3. **商业故事线** — 用一个有趣的公司真实故事（要有公司名、具体发生了什么、最后怎么样了）来打比方，说说这局的核心教训
+3. **商业故事线** — 用一个有趣的公司真实故事来打比方（要有公司名、具体发生了什么、最后怎么样了）。【重要】不要用诺基亚、柯达这些老掉牙的案例！从以下公司随机选或自己想新的：Stripe、Shopify、Zoom、Costco、ALDI、海底捞、瑞幸、巴菲特、莱斯特城、Netflix、迪士尼漫威收购、丰田、SHEIN、拼多多、Airbnb、SpaceX、任天堂Switch、星巴克第三空间、Dyson、优衣库、比亚迪、Spotify、Notion等
 4. **下次打法** — 用一两句可执行策略收尾：同类局面怎么诈唬、怎么吃价值、怎么计划翻牌/转牌/河牌
 
 直接输出Markdown文本就行。`;
