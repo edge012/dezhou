@@ -58,9 +58,9 @@ function IntroScreen({ g }: { g: PokerGameHook }) {
     <div className="w-full h-screen intro-gradient text-slate-100 flex items-center justify-center overflow-hidden relative px-6">
       <div className="z-10 w-full max-w-6xl grid grid-cols-[1fr_400px] gap-8 items-center">
         <div>
-          <div className="w-20 h-20 bg-blue-500/10 text-blue-400 rounded-2xl flex items-center justify-center mb-6 border border-blue-500/20 glow-blue">
-          <Brain className="w-10 h-10" />
-        </div>
+          <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6 border border-white/10 glow-blue overflow-hidden shadow-2xl">
+            <img src="/logo.png" alt="决策沙盘 Pro Logo" className="w-full h-full object-cover" />
+          </div>
           <h1 className="text-5xl font-black text-white mb-4 tracking-tight">
           决策沙盘 <span className="shimmer-text">Pro</span>
         </h1>
@@ -251,8 +251,8 @@ export default function App() {
       <header className="h-12 border-b border-slate-800/80 bg-slate-900/95 flex items-center justify-between px-5 shrink-0 z-50 backdrop-blur-sm">
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md bg-blue-600 flex items-center justify-center">
-              <Brain className="w-3.5 h-3.5 text-white" />
+            <div className="w-6 h-6 rounded-md flex items-center justify-center overflow-hidden border border-white/10 shadow-sm">
+              <img src="/logo.png" alt="Logo" className="w-full h-full object-cover" />
             </div>
             <span className="text-xs font-black tracking-wider text-white uppercase">决策沙盘</span>
           </div>
