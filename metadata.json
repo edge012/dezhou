@@ -1,0 +1,10 @@
+{
+  "name": "Hold'em Mentor",
+  "description": "A professional-grade Texas Hold'em deliberate practice and coaching simulator with real-time AI decision analysis.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "AI-powered coaching",
+    "Poker simulation",
+    "Real-time analytics"
+  ]
+}
