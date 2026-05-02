@@ -286,6 +286,12 @@ ${handLog}
       appType: "spa",
     });
     app.use(vite.middlewares);
+  } else {
+    // 生产环境：托管 Vite 构建产物
+    app.use(express.static("dist"));
+    app.get("*", (_req, res) => {
+      res.sendFile("index.html", { root: "dist" });
+    });
   }
 
   app.listen(PORT, "0.0.0.0", () => {
